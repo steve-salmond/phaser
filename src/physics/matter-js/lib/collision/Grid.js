@@ -147,8 +147,6 @@ var Common = require('../core/Common');
      */
     Grid.clear = function(grid) {
 
-        console.log("Grid.clear");
-        
         // Instead of allocating a new bucket map, wipe the existing one
         // and recycle buckets themselves into the free bucket list.
         // This should reduce allocations and save on GC load.
