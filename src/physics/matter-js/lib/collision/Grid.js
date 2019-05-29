@@ -25,6 +25,7 @@ var Common = require('../core/Common');
             controller: Grid,
             detector: Detector.collisions,
             buckets: {},
+            freeBuckets: [],
             pairs: {},
             pairsList: [],
             bucketWidth: 48,
@@ -120,7 +121,7 @@ var Common = require('../core/Common');
                         // add to new region buckets
                         if (body.region === newRegion || (isInsideNewRegion && !isInsideOldRegion) || forceUpdate) {
                             if (!bucket)
-                                bucket = Grid._createBucket(buckets, bucketId);
+                                bucket = Grid._createBucket(grid, buckets, bucketId);
                             Grid._bucketAddBody(grid, bucket, body);
                         }
                     }
@@ -136,7 +137,7 @@ var Common = require('../core/Common');
 
         // update pairs list only if pairs changed (i.e. a body changed region)
         if (gridChanged)
-            grid.pairsList = Grid._createActivePairsList(grid);
+            Grid._createActivePairsList(grid, grid.pairsList);
     };
 
     /**
@@ -145,9 +146,27 @@ var Common = require('../core/Common');
      * @param {grid} grid
      */
     Grid.clear = function(grid) {
-        grid.buckets = {};
+
+        console.log("Grid.clear");
+        
+        // Instead of allocating a new bucket map, wipe the existing one
+        // and recycle buckets themselves into the free bucket list.
+        // This should reduce allocations and save on GC load.
+        // grid.buckets = {};
+
+        var buckets = grid.buckets,
+            freeBuckets = grid.freeBuckets;
+
+        for (const key in buckets) {
+            let bucket = buckets[key];
+            bucket.length = 0;
+
+            freeBuckets.push(bucket);
+            delete buckets[key];
+        }
+        
         grid.pairs = {};
-        grid.pairsList = [];
+        grid.pairsList.length = 0;
     };
 
     /**
@@ -225,8 +244,18 @@ var Common = require('../core/Common');
      * @param {} bucketId
      * @return {} bucket
      */
-    Grid._createBucket = function(buckets, bucketId) {
-        var bucket = buckets[bucketId] = [];
+    Grid._createBucket = function(grid, buckets, bucketId) {
+
+        var bucket;
+        var freeBuckets = grid.freeBuckets;
+        if (freeBuckets.length > 0) {
+            bucket = freeBuckets.pop();
+        }
+        else {
+            bucket = [];
+        }
+
+        buckets[bucketId] = bucket;
         return bucket;
     };
 
@@ -271,8 +300,14 @@ var Common = require('../core/Common');
      * @param {} body
      */
     Grid._bucketRemoveBody = function(grid, bucket, body) {
+
         // remove from bucket
-        bucket.splice(Common.indexOf(bucket, body), 1);
+        // bucket.splice(Common.indexOf(bucket, body), 1);
+        
+        // Instead of using splice (which creates GC load), just move last bucket element to the vacated spot.
+        var index = Common.indexOf(bucket, body);
+        bucket[index] = bucket[bucket.length - 1];
+        bucket.length--;
 
         // update pair counts
         for (var i = 0; i < bucket.length; i++) {
@@ -294,10 +329,11 @@ var Common = require('../core/Common');
      * @param {} grid
      * @return [] pairs
      */
-    Grid._createActivePairsList = function(grid) {
+    Grid._createActivePairsList = function(grid, pairs) {
         var pairKeys,
-            pair,
-            pairs = [];
+            pair;
+
+        pairs.length = 0;
 
         // grid.pairs is used as a hashmap
         pairKeys = Common.keys(grid.pairs);
