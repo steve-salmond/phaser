@@ -273,10 +273,12 @@ var Common = require('../core/Common');
      * @private
      * @param {} column
      * @param {} row
-     * @return {string} bucket id
+     * @return {number} bucket id
      */
     Grid._getBucketId = function(column, row) {
-        return 'C' + column + 'R' + row;
+        // Use a number instead of a string to hopefully reduce GC allocations.
+        return column * 1000000000 + row;
+        // return 'C' + column + 'R' + row;
     };
 
     /**
