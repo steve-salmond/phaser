@@ -29,10 +29,15 @@ var Common = require('../core/Common');
             pairs: {},
             pairsList: [],
             bucketWidth: 48,
-            bucketHeight: 48
+            bucketHeight: 48,
         };
 
-        return Common.extend(defaults, options);
+        var grid = Common.extend(defaults, options);
+
+        grid._union = Grid._createRegion(0, 0, 0, 0);
+        grid._current = Grid._createRegion(0, 0, 0, 0);
+
+        return grid;
     };
 
     /**
@@ -83,19 +88,26 @@ var Common = require('../core/Common');
                 || body.bounds.max.y < world.bounds.min.y || body.bounds.min.y > world.bounds.max.y)
                 continue;
 
-            var newRegion = Grid._getRegion(grid, body);
+            // determine current region coordinates for this body
+            var newRegion = Grid._getRegion(grid, grid._current, body);
 
             // if the body has changed grid region
-            if (!body.region || newRegion.id !== body.region.id || forceUpdate) {
+            if (!body.region || !Grid._isSameRegion(body.region, newRegion) || forceUpdate) {
 
                 // @if DEBUG
                 metrics.broadphaseTests += 1;
                 // @endif
 
-                if (!body.region || forceUpdate)
-                    body.region = newRegion;
+                // determine the union of body's previous and current region
+                var union = !body.region || forceUpdate 
+                    ? Grid._setRegion(grid._union, newRegion)
+                    : Grid._regionUnion(grid._union, newRegion, body.region);
 
-                var union = Grid._regionUnion(newRegion, body.region);
+                // Ensure body has a region assigned.
+                var createRegion = !body.region;
+                if (createRegion) {
+                    body.region = Grid._createRegionFrom(newRegion);
+                }
 
                 // update grid buckets affected by region change
                 // iterate over the union of both regions
@@ -119,7 +131,7 @@ var Common = require('../core/Common');
                         }
 
                         // add to new region buckets
-                        if (body.region === newRegion || (isInsideNewRegion && !isInsideOldRegion) || forceUpdate) {
+                        if (createRegion || (isInsideNewRegion && !isInsideOldRegion) || forceUpdate) {
                             if (!bucket)
                                 bucket = Grid._createBucket(grid, buckets, bucketId);
                             Grid._bucketAddBody(grid, bucket, body);
@@ -128,7 +140,7 @@ var Common = require('../core/Common');
                 }
 
                 // set the new region
-                body.region = newRegion;
+                Grid._setRegion(body.region, newRegion);
 
                 // flag changes so we can update pairs
                 gridChanged = true;
@@ -175,31 +187,13 @@ var Common = require('../core/Common');
      * @param {} regionB
      * @return {} region
      */
-    Grid._regionUnion = function(regionA, regionB) {
-        var startCol = Math.min(regionA.startCol, regionB.startCol),
-            endCol = Math.max(regionA.endCol, regionB.endCol),
-            startRow = Math.min(regionA.startRow, regionB.startRow),
-            endRow = Math.max(regionA.endRow, regionB.endRow);
+    Grid._regionUnion = function(union, regionA, regionB) {
+        union.startCol = Math.min(regionA.startCol, regionB.startCol),
+        union.endCol = Math.max(regionA.endCol, regionB.endCol),
+        union.startRow = Math.min(regionA.startRow, regionB.startRow),
+        union.endRow = Math.max(regionA.endRow, regionB.endRow);
 
-        return Grid._createRegion(startCol, endCol, startRow, endRow);
-    };
-
-    /**
-     * Gets the region a given body falls in for a given grid.
-     * @method _getRegion
-     * @private
-     * @param {} grid
-     * @param {} body
-     * @return {} region
-     */
-    Grid._getRegion = function(grid, body) {
-        var bounds = body.bounds,
-            startCol = Math.floor(bounds.min.x / grid.bucketWidth),
-            endCol = Math.floor(bounds.max.x / grid.bucketWidth),
-            startRow = Math.floor(bounds.min.y / grid.bucketHeight),
-            endRow = Math.floor(bounds.max.y / grid.bucketHeight);
-
-        return Grid._createRegion(startCol, endCol, startRow, endRow);
+        return union;
     };
 
     /**
@@ -214,12 +208,63 @@ var Common = require('../core/Common');
      */
     Grid._createRegion = function(startCol, endCol, startRow, endRow) {
         return { 
-            id: startCol + ',' + endCol + ',' + startRow + ',' + endRow,
             startCol: startCol, 
             endCol: endCol, 
             startRow: startRow, 
             endRow: endRow 
         };
+    };
+
+    /**
+     * Sets the given region values.
+     * @method _setRegion
+     * @private
+     * @param {} region
+     * @param {} source
+     * @return {} region
+     */
+    Grid._setRegion = function(region, source) {
+        region.startCol = source.startCol;
+        region.endCol = source.endCol;
+        region.startRow = source.startRow; 
+        region.endRow = source.endRow;
+
+        return region;
+    };
+
+    Grid._createRegionFrom = function(r) {
+        return Grid._createRegion(r.startCol, r.endCol, r.startRow, r.endRow);
+    }
+
+    /**
+     * Sets the given region from body.
+     * @method _setRegion
+     * @private
+     * @param {} region
+     * @param {} body
+     * @return {} region
+     */
+    Grid._getRegion = function(grid, region, body) {
+
+        var bounds = body.bounds;
+
+        region.startCol = Math.floor(bounds.min.x / grid.bucketWidth);
+        region.endCol = Math.floor(bounds.max.x / grid.bucketWidth);
+        region.startRow = Math.floor(bounds.min.y / grid.bucketHeight); 
+        region.endRow = Math.floor(bounds.max.y / grid.bucketHeight);
+
+        return region;
+    };
+
+    Grid._isSameRegion = function(regionA, regionB) {
+
+        if (!regionA || !regionB)
+            return false;
+
+        return regionA.startCol == regionB.startCol 
+            && regionA.endCol == regionB.endCol 
+            && regionA.startRow == regionB.startRow 
+            && regionA.endRow == regionB.endRow;
     };
 
     /**
