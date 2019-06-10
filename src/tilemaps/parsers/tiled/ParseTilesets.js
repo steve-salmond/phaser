@@ -140,8 +140,10 @@ var ParseTilesets = function (json)
 
             for (stringID in set.tiles)
             {
-                var image = set.tiles[stringID].image;
-                var gid = set.firstgid + parseInt(stringID, 10);
+                var imageTile = set.tiles[stringID];
+                var image = imageTile.image;
+                var imageId = imageTile.id;
+                var gid = set.firstgid + parseInt(imageId, 10);
                 newCollection.addImage(gid, image);
             }
 
