@@ -1494,7 +1494,10 @@ var InputPlugin = new Class({
             {
                 this._over[pointer.id] = [];
 
-                gameObject.emit(Events.GAMEOBJECT_POINTER_OUT, pointer, gameObject.input.localX, gameObject.input.localY, _eventContainer);
+                if (gameObject.input)
+                {
+                    gameObject.emit(Events.GAMEOBJECT_POINTER_OUT, pointer, gameObject.input.localX, gameObject.input.localY, _eventContainer);
+                }
             }
 
             if (_eventData.cancelled)
