@@ -351,8 +351,10 @@ var Common = require('../core/Common');
         
         // Instead of using splice (which creates GC load), just move last bucket element to the vacated spot.
         var index = Common.indexOf(bucket, body);
-        bucket[index] = bucket[bucket.length - 1];
-        bucket.length--;
+        if (index >= 0) {
+            bucket[index] = bucket[bucket.length - 1];
+            bucket.length--;
+        }
 
         // update pair counts
         for (var i = 0; i < bucket.length; i++) {
