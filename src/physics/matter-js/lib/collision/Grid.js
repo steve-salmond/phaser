@@ -167,7 +167,7 @@ var Common = require('../core/Common');
         var buckets = grid.buckets,
             freeBuckets = grid.freeBuckets;
 
-        for (const key in buckets) {
+        for (var key in buckets) {
             let bucket = buckets[key];
             bucket.length = 0;
 
