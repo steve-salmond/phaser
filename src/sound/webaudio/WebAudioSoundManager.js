@@ -110,6 +110,15 @@ var WebAudioSoundManager = new Class({
             return audioConfig.context;
         }
 
+        try
+        {
+            return new AudioContext({sampleRate: 44100});
+        }
+        catch (ex)
+        {
+            console.warn('WebAudioSoundManager.createAudioContext(): Unable to create audio context with sample rate of 44100, falling back to default method.');
+        }
+
         return new AudioContext();
     },
 
